@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +60,14 @@ const Index = () => {
               >
                 {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                 {isDarkMode ? 'Light' : 'Dark'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={() => window.location.href = '/voting'}
+              >
+                Go to Voting
               </Button>
               <Button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4" />
