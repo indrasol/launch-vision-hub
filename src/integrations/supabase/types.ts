@@ -9,23 +9,82 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      idea_votes: {
+        Row: {
+          created_at: string
+          id: string
+          idea_id: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idea_id: string
+          user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idea_id?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idea_votes_idea_id_fkey"
+            columns: ["idea_id"]
+            isOneToOne: false
+            referencedRelation: "ideas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ideas: {
+        Row: {
+          created_at: string
+          id: string
+          idea: string
+          num_votes: number
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          idea: string
+          num_votes?: number
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          idea?: string
+          num_votes?: number
+          username?: string
+        }
+        Relationships: []
+      }
       voting: {
         Row: {
           created_at: string
           id: number
           idea: string | null
+          num_votes: number | null
           username: string | null
         }
         Insert: {
           created_at?: string
           id?: number
           idea?: string | null
+          num_votes?: number | null
           username?: string | null
         }
         Update: {
           created_at?: string
           id?: number
           idea?: string | null
+          num_votes?: number | null
           username?: string | null
         }
         Relationships: []
@@ -35,7 +94,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      handle_vote: {
+        Args: { p_idea_id: string; p_user_id: string; p_value: number }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
