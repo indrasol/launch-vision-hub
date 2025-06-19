@@ -148,21 +148,26 @@ const Voting = () => {
 
       if (error) throw error;
 
-      const response = data as VoteResponse;
+      // Safely parse the response data
+      const response = data as unknown as VoteResponse;
       
-      if (response.success) {
-        // Update local state
-        setUserVotes(prev => ({
-          ...prev,
-          [ideaId]: response.user_vote
-        }));
-        
-        // Update the idea's vote count in local state
-        setIdeas(prev => prev.map(idea => 
-          idea.id === ideaId 
-            ? { ...idea, num_votes: response.new_total }
-            : idea
-        ));
+      if (response && typeof response === 'object' && 'success' in response) {
+        if (response.success) {
+          // Update local state
+          setUserVotes(prev => ({
+            ...prev,
+            [ideaId]: response.user_vote
+          }));
+          
+          // Update the idea's vote count in local state
+          setIdeas(prev => prev.map(idea => 
+            idea.id === ideaId 
+              ? { ...idea, num_votes: response.new_total }
+              : idea
+          ));
+        }
+      } else {
+        throw new Error('Invalid response format from vote handler');
       }
     } catch (error) {
       console.error('Error voting:', error);
