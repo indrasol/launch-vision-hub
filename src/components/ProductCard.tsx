@@ -2,7 +2,8 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, Users, DollarSign } from "lucide-react";
+import { TrendingUp, Users, DollarSign, Plus, Minus } from "lucide-react";
+import { useState } from "react";
 
 interface ProductCardProps {
   product: {
@@ -30,6 +31,8 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onViewDetails }: ProductCardProps) => {
+  const [tallyCount, setTallyCount] = useState(0);
+
   const getScoreColor = (score: number) => {
     if (score >= 8) return "bg-green-500";
     if (score >= 6) return "bg-yellow-500";
@@ -38,6 +41,14 @@ const ProductCard = ({ product, onViewDetails }: ProductCardProps) => {
 
   const getRevenueIndicator = (score: number) => {
     return "$$$$".slice(0, Math.max(1, Math.ceil(score / 2.5)));
+  };
+
+  const incrementTally = () => {
+    setTallyCount(prev => prev + 1);
+  };
+
+  const decrementTally = () => {
+    setTallyCount(prev => Math.max(0, prev - 1));
   };
 
   return (
@@ -59,6 +70,31 @@ const ProductCard = ({ product, onViewDetails }: ProductCardProps) => {
       
       <CardContent className="space-y-4">
         <p className="text-gray-600 text-sm line-clamp-3">{product.description}</p>
+        
+        {/* Tally Counter */}
+        <div className="flex items-center justify-center gap-3 py-2 border rounded-lg bg-gray-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={decrementTally}
+            className="h-8 w-8 p-0"
+            disabled={tallyCount === 0}
+          >
+            <Minus className="w-4 h-4" />
+          </Button>
+          <div className="text-center">
+            <div className="text-lg font-bold">{tallyCount}</div>
+            <div className="text-xs text-gray-500">Tally</div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={incrementTally}
+            className="h-8 w-8 p-0"
+          >
+            <Plus className="w-4 h-4" />
+          </Button>
+        </div>
         
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="space-y-1">
