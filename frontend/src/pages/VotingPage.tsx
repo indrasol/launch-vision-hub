@@ -1,16 +1,57 @@
 import { useState, useEffect } from "react";
-import { sampleProducts } from "../data/sampleProducts";
 import IdeaVotingCard from "../components/IdeaVotingCard";
 import ProductDetail from "../components/ProductDetail";
 import { Button } from "@/components/ui/button";
+import { supabase } from "../lib/supabaseClient";
 
 export default function VotingPage() {
-  const [ideas, setIdeas] = useState(sampleProducts.slice(0, 6));
+  const [ideas, setIdeas] = useState([]);
+  const [votes, setVotes] = useState({});
   const [selectedProductId, setSelectedProductId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch ideas and votes from Supabase
   useEffect(() => {
-    setIdeas(sampleProducts.slice(0, 6));
-  }, [sampleProducts.length]);
+    const fetchIdeasAndVotes = async () => {
+      setLoading(true);
+      // Fetch ideas
+      const { data: ideasData } = await supabase.from("ideas").select("*");
+      setIdeas(ideasData || []);
+      // Fetch votes
+      const { data: votesData } = await supabase.from("idea_votes").select("*");
+      // Group votes by idea_id
+      const votesByIdea = {};
+      (votesData || []).forEach(vote => {
+        if (!votesByIdea[vote.idea_id]) votesByIdea[vote.idea_id] = [];
+        votesByIdea[vote.idea_id].push(vote);
+      });
+      setVotes(votesByIdea);
+      setLoading(false);
+    };
+    fetchIdeasAndVotes();
+  }, []);
+
+  // Upvote handler
+  const handleUpvote = async (ideaId, name) => {
+    // Prevent duplicate name for this idea
+    const currentVoters = votes[ideaId] || [];
+    if (currentVoters.some(v => v.voter_name.toLowerCase() === name.toLowerCase())) {
+      return { error: "This name has already voted on this idea." };
+    }
+    // Insert vote in Supabase
+    const { data, error } = await supabase
+      .from("idea_votes")
+      .insert([{ idea_id: ideaId, voter_name: name }])
+      .select()
+      .single();
+    if (error) return { error: error.message };
+    // Update local state
+    setVotes(prev => ({
+      ...prev,
+      [ideaId]: [{ ...data, voted_at: new Date() }, ...(prev[ideaId] || [])]
+    }));
+    return { success: true };
+  };
 
   if (selectedProductId) {
     const product = ideas.find((i) => i.id === selectedProductId);
@@ -33,11 +74,22 @@ export default function VotingPage() {
             View Dashboard
           </Button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {ideas.map((idea) => (
-            <IdeaVotingCard key={idea.id} idea={idea} onViewDetails={setSelectedProductId} />
-          ))}
-        </div>
+        {loading ? (
+          <div>Loading...</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {ideas.map((idea) => (
+              <IdeaVotingCard
+                key={idea.id}
+                idea={idea}
+                voteCount={(votes[idea.id] || []).length}
+                voters={votes[idea.id] || []}
+                onUpvote={handleUpvote}
+                onViewDetails={setSelectedProductId}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

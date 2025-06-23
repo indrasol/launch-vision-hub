@@ -7,9 +7,7 @@ import { motion } from "framer-motion";
 
 const ACCENT = "#6366F1";
 
-export default function IdeaVotingCard({ idea, onViewDetails }) {
-  const [voteCount, setVoteCount] = useState(0);
-  const [voters, setVoters] = useState([]);
+export default function IdeaVotingCard({ idea, voteCount, voters, onUpvote, onViewDetails }) {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [username, setUsername] = useState("");
@@ -20,19 +18,18 @@ export default function IdeaVotingCard({ idea, onViewDetails }) {
     setError("");
   };
 
-  const handleModalSubmit = (e) => {
+  const handleModalSubmit = async (e) => {
     e.preventDefault();
     const name = username.trim();
     if (!name) return;
-    if (voters.some(v => v.name.toLowerCase() === name.toLowerCase())) {
-      setError("This name has already voted on this idea.");
+    setError("");
+    const result = await onUpvote(idea.id, name);
+    if (result?.error) {
+      setError(result.error);
       return;
     }
-    setVoters((prev) => [{ name, time: new Date() }, ...prev]);
-    setVoteCount((c) => c + 1);
     setModalOpen(false);
     setUsername("");
-    setError("");
   };
 
   return (
@@ -77,10 +74,10 @@ export default function IdeaVotingCard({ idea, onViewDetails }) {
           <ul>
             {voters.length === 0 && <li className="text-xs text-gray-400">No votes yet</li>}
             {voters.map((v, i) => (
-              <li key={v.name + v.time} className="flex items-center gap-2 py-1">
+              <li key={v.voter_name + v.voted_at} className="flex items-center gap-2 py-1">
                 <span className="w-2 h-2 rounded-full bg-[#6366F1]"></span>
-                <span className="text-xs text-gray-700">{v.name}</span>
-                <span className="ml-auto text-[10px] text-gray-400">{v.time.toLocaleString()}</span>
+                <span className="text-xs text-gray-700">{v.voter_name}</span>
+                <span className="ml-auto text-[10px] text-gray-400">{new Date(v.voted_at).toLocaleString()}</span>
               </li>
             ))}
           </ul>
