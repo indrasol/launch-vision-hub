@@ -56,8 +56,8 @@ export default function IdeaVotingCard({ idea, voteCount, voters, onUpvote, onVi
         </Button>
       </div>
       <div className="w-full mb-2">
-        <p className="text-base font-medium text-gray-900 dark:text-white line-clamp-3 mb-2 text-center">
-          {idea.title}
+        <p className="text-base font-medium text-gray-900 dark:text-white mb-2 text-center">
+          {idea.idea_title}
         </p>
       </div>
       <Button className="w-full bg-[#6366F1] text-white shadow-sm hover:shadow-md rounded-md mt-2 mb-2" onClick={() => onViewDetails?.(idea.id)}>
