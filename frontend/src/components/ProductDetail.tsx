@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Edit, Trash2, Share2, Download } from "lucide-react";
 import SearchVolumeChart from "./SearchVolumeChart";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell } from 'recharts';
+import { supabase } from "../lib/supabaseClient";
 
 interface ProductDetailProps {
   product: {
@@ -17,6 +18,37 @@ interface ProductDetailProps {
     problemScore: number;
     feasibilityScore: number;
     whyNowScore: number;
+    marketSize: number;
+    penetrationRate: number;
+    arpu: number;
+    usersNeeded: number;
+    projectedRevenue: number;
+    keyGaps: string | {
+      overview: string;
+      points: Array<{
+        main: string;
+        sub: string[];
+      }>;
+    };
+    solution: string | {
+      overview: string;
+      tagline: string;
+      points: Array<{
+        main: string;
+        sub: string[];
+      }>;
+    };
+    userJourney: string[] | Array<{
+      phase: string;
+      userAction: string;
+      zipReachAction: string | string[];
+      output: string;
+    }>;
+    realWorldScenario: string | string[];
+    uniqueValuePropositions: string[] | Array<{
+      main: string;
+      description: string;
+    }>;
     searchVolume: {
       keyword: string;
       monthlyVolume: number;
@@ -92,16 +124,152 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
     }))
   );
 
+  // Load data from Supabase on component mount
+  useEffect(() => {
+    loadCompetitorData();
+  }, [product.id]);
+
+  const loadCompetitorData = async () => {
+    try {
+      // Load competitor findings
+      const { data: findings, error: findingsError } = await supabase
+        .from('competitor_findings')
+        .select('*')
+        .eq('product_id', product.id)
+        .order('order_index');
+
+      if (findingsError) {
+        console.error('Error loading competitor findings:', findingsError);
+      } else if (findings && findings.length > 0) {
+        const mappedFindings = findings.map(finding => ({
+          competitor: finding.competitor,
+          revenue: finding.revenue,
+          marketSize: finding.market_size
+        }));
+        setCompetitorFindings(mappedFindings);
+      }
+
+      // Load competitor analysis  
+      const { data: analysis, error: analysisError } = await supabase
+        .from('competitor_analysis')
+        .select('*')
+        .eq('product_id', product.id)
+        .order('order_index');
+
+      if (analysisError) {
+        console.error('Error loading competitor analysis:', analysisError);
+      } else if (analysis && analysis.length > 0) {
+        const mappedAnalysis = analysis.map(item => ({
+          competitor: item.competitor,
+          keyGaps: item.key_gaps,
+          ourSolution: item.our_solution
+        }));
+        setCompetitorAnalysis(mappedAnalysis);
+      }
+    } catch (error) {
+      console.error('Error loading competitor data:', error);
+    }
+  };
+
+  const saveCompetitorFindings = async (findings) => {
+    try {
+      // Delete existing findings for this product
+      await supabase
+        .from('competitor_findings')
+        .delete()
+        .eq('product_id', product.id);
+
+      // Insert new findings
+      const dataToInsert = findings.map((finding, index) => ({
+        product_id: product.id,
+        competitor: finding.competitor,
+        revenue: finding.revenue,
+        market_size: finding.marketSize,
+        order_index: index
+      }));
+
+      const { error } = await supabase
+        .from('competitor_findings')
+        .insert(dataToInsert);
+
+      if (error) {
+        console.error('Error saving competitor findings:', error);
+      }
+    } catch (error) {
+      console.error('Error saving competitor findings:', error);
+    }
+  };
+
+  const saveCompetitorAnalysis = async (analysis) => {
+    try {
+      // Delete existing analysis for this product
+      await supabase
+        .from('competitor_analysis')
+        .delete()
+        .eq('product_id', product.id);
+
+      // Insert new analysis
+      const dataToInsert = analysis.map((item, index) => ({
+        product_id: product.id,
+        competitor: item.competitor,
+        key_gaps: item.keyGaps,
+        our_solution: item.ourSolution,
+        order_index: index
+      }));
+
+      const { error } = await supabase
+        .from('competitor_analysis')
+        .insert(dataToInsert);
+
+      if (error) {
+        console.error('Error saving competitor analysis:', error);
+      }
+    } catch (error) {
+      console.error('Error saving competitor analysis:', error);
+    }
+  };
+
   // Add row handlers
-  const addCompetitorFinding = () => setCompetitorFindings([...competitorFindings, { competitor: '', revenue: '', marketSize: '' }]);
-  const addCompetitorAnalysis = () => setCompetitorAnalysis([...competitorAnalysis, { competitor: '', keyGaps: '', ourSolution: '' }]);
+  const addCompetitorFinding = () => {
+    const newFindings = [...competitorFindings, { competitor: '', revenue: '', marketSize: '' }];
+    setCompetitorFindings(newFindings);
+    saveCompetitorFindings(newFindings);
+  };
+  
+  const addCompetitorAnalysis = () => {
+    const newAnalysis = [...competitorAnalysis, { competitor: '', keyGaps: '', ourSolution: '' }];
+    setCompetitorAnalysis(newAnalysis);
+    saveCompetitorAnalysis(newAnalysis);
+  };
 
   // Edit cell handlers
   const editCompetitorFinding = (idx, field, value) => {
-    setCompetitorFindings(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+    const updatedFindings = competitorFindings.map((row, i) => 
+      i === idx ? { ...row, [field]: value } : row
+    );
+    setCompetitorFindings(updatedFindings);
+    saveCompetitorFindings(updatedFindings);
   };
+  
   const editCompetitorAnalysis = (idx, field, value) => {
-    setCompetitorAnalysis(prev => prev.map((row, i) => i === idx ? { ...row, [field]: value } : row));
+    const updatedAnalysis = competitorAnalysis.map((row, i) => 
+      i === idx ? { ...row, [field]: value } : row
+    );
+    setCompetitorAnalysis(updatedAnalysis);
+    saveCompetitorAnalysis(updatedAnalysis);
+  };
+
+  // Delete row handlers
+  const deleteCompetitorFinding = (idx) => {
+    const updatedFindings = competitorFindings.filter((_, i) => i !== idx);
+    setCompetitorFindings(updatedFindings);
+    saveCompetitorFindings(updatedFindings);
+  };
+  
+  const deleteCompetitorAnalysis = (idx) => {
+    const updatedAnalysis = competitorAnalysis.filter((_, i) => i !== idx);
+    setCompetitorAnalysis(updatedAnalysis);
+    saveCompetitorAnalysis(updatedAnalysis);
   };
 
   return (
@@ -142,37 +310,53 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
         {/* Title Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">{product.title}</h1>
-          <p className="text-lg text-gray-600 mb-4 font-semibold">Unlocking Growth with Disruptive Innovation for the Modern Market</p>
+          <p className="text-lg text-gray-600 mb-4 font-semibold">{product.tagline}</p>
 
           {/* Stat Cards Row */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-3xl font-bold mb-2 text-blue-600">1B</div>
+                <div className="text-3xl font-bold mb-2 text-blue-600">
+                  {product.marketSize >= 1000000000 
+                    ? `${(product.marketSize / 1000000000).toFixed(0)}B` 
+                    : `${(product.marketSize / 1000000).toFixed(0)}M`}
+                </div>
                 <div className="text-sm font-bold text-gray-600">Market Size</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-3xl font-bold mb-2 text-green-600">3%</div>
+                <div className="text-3xl font-bold mb-2 text-green-600">{product.penetrationRate}%</div>
                 <div className="text-sm font-bold text-gray-600">Penetration Percentage</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-3xl font-bold mb-2 text-purple-600">$1,000</div>
+                <div className="text-3xl font-bold mb-2 text-purple-600">${product.arpu.toLocaleString()}</div>
                 <div className="text-sm font-bold text-gray-600">ARPU (Average Revenue per User)/Year Needed</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-3xl font-bold mb-2 text-orange-600">30,000</div>
+                <div className="text-3xl font-bold mb-2 text-orange-600">
+                  {product.usersNeeded >= 1000000000 
+                    ? `${(product.usersNeeded / 1000000000).toFixed(1)}B` 
+                    : product.usersNeeded >= 1000000
+                    ? `${(product.usersNeeded / 1000000).toFixed(1)}M`
+                    : product.usersNeeded.toLocaleString()}
+                </div>
                 <div className="text-sm font-bold text-gray-600">Number of Users Needed</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4 text-center">
-                <div className="text-3xl font-bold mb-2 text-red-600">$30M</div>
+                <div className="text-3xl font-bold mb-2 text-red-600">
+                  ${product.projectedRevenue >= 1000000000 
+                    ? `${(product.projectedRevenue / 1000000000).toFixed(1)}B` 
+                    : product.projectedRevenue >= 1000000 
+                    ? `${(product.projectedRevenue / 1000000).toFixed(0)}M` 
+                    : `${(product.projectedRevenue / 1000).toFixed(0)}K`}
+                </div>
                 <div className="text-sm font-bold text-gray-600">Projected Annual Revenue</div>
               </CardContent>
             </Card>
@@ -182,10 +366,33 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
           <Card className="mb-8">
             <CardContent className="p-4 text-center">
               <span className="text-lg md:text-xl">
-                Assuming a conservative <b className="text-green-600">3% Penetration Rate</b> in a <b className="text-blue-600">Market Size</b> of <b className="text-blue-600">1B</b> with an <b className="text-purple-600">Average Revenue</b> of <b className="text-purple-600">$1,000</b> per users, we would need <b className="text-orange-600">30,000 Users</b> to achieve an <b className="text-red-600">Annual Revenue $30M</b>.
+                Assuming a conservative <b className="text-green-600">{product.penetrationRate}% Penetration Rate</b> in a <b className="text-blue-600">Market Size</b> of <b className="text-blue-600">
+                {product.marketSize >= 1000000000 
+                  ? `${(product.marketSize / 1000000000).toFixed(0)}B` 
+                  : `${(product.marketSize / 1000000).toFixed(0)}M`}
+                </b> with an <b className="text-purple-600">Average Revenue</b> of <b className="text-purple-600">${product.arpu.toLocaleString()}</b> per users, we would need <b className="text-orange-600">
+                {product.usersNeeded >= 1000000000 
+                  ? `${(product.usersNeeded / 1000000000).toFixed(1)}B` 
+                  : product.usersNeeded >= 1000000
+                  ? `${(product.usersNeeded / 1000000).toFixed(1)}M`
+                  : product.usersNeeded.toLocaleString()} Users</b> to achieve an <b className="text-red-600">Annual Revenue $
+                {product.projectedRevenue >= 1000000000 
+                  ? `${(product.projectedRevenue / 1000000000).toFixed(1)}B` 
+                  : product.projectedRevenue >= 1000000 
+                  ? `${(product.projectedRevenue / 1000000).toFixed(0)}M` 
+                  : `${(product.projectedRevenue / 1000).toFixed(0)}K`}</b>.
               </span>
               <div className="mt-2 text-lg">
-                With market penetration, the revenue potential is <span className="text-blue-600">1B</span> × <span className="text-green-600">3%</span> = <span className="text-red-600">$30M</span>.
+                With market penetration, the revenue potential is <span className="text-blue-600">
+                {product.marketSize >= 1000000000 
+                  ? `${(product.marketSize / 1000000000).toFixed(0)}B` 
+                  : `${(product.marketSize / 1000000).toFixed(0)}M`}
+                </span> × <span className="text-green-600">{product.penetrationRate}%</span> = <span className="text-red-600">$
+                {product.projectedRevenue >= 1000000000 
+                  ? `${(product.projectedRevenue / 1000000000).toFixed(1)}B` 
+                  : product.projectedRevenue >= 1000000 
+                  ? `${(product.projectedRevenue / 1000000).toFixed(0)}M` 
+                  : `${(product.projectedRevenue / 1000).toFixed(0)}K`}</span>.
               </div>
             </CardContent>
           </Card>
@@ -232,8 +439,53 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
               <CardHeader>
                 <CardTitle>Key Gaps</CardTitle>
               </CardHeader>
+      
               <CardContent>
-                <p className="text-gray-700 leading-relaxed">This section describes the main pain points or challenges that this product addresses for its target users.</p>
+                {typeof product.keyGaps === 'object' && product.keyGaps && product.keyGaps.overview && product.keyGaps.points ? (
+                  <div>
+                    <p className="text-gray-700 leading-relaxed mb-6">{product.keyGaps.overview}</p>
+                    <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+                      {product.keyGaps.points.map((gap, index) => (
+                        <li key={index} className="mb-3">
+                          <span className="font-semibold">{gap.main}</span>
+                          {gap.sub && gap.sub.length > 0 && (
+                            <ol className="list-[lower-alpha] pl-6 mt-2 space-y-1">
+                              {gap.sub.map((subPoint, subIndex) => (
+                                <li key={subIndex} className="text-gray-600">{subPoint}</li>
+                              ))}
+                            </ol>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : Array.isArray(product.keyGaps) && product.keyGaps.length > 0 && typeof product.keyGaps[0] === 'object' ? (
+                  <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+                    {product.keyGaps.map((gap, index) => (
+                      <li key={index} className="mb-3">
+                        <span className="font-semibold">{gap.main}</span>
+                        {gap.sub && gap.sub.length > 0 && (
+                          <ol className="list-[lower-alpha] pl-6 mt-2 space-y-1">
+                            {gap.sub.map((subPoint, subIndex) => (
+                              <li key={subIndex} className="text-gray-600">{subPoint}</li>
+                            ))}
+                          </ol>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <ul className="list-disc pl-5 text-gray-700">
+                    {(typeof product.keyGaps === 'string' 
+                      ? product.keyGaps.split('.').filter(gap => gap.trim().length > 0)
+                      : Array.isArray(product.keyGaps) 
+                      ? product.keyGaps 
+                      : [product.keyGaps]
+                    ).map((gap, index) => (
+                      <li key={index} className="mb-2">{typeof gap === 'string' ? gap.trim() : gap}</li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
             {/* Solution */}
@@ -242,7 +494,30 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                 <CardTitle>Solution</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-700 leading-relaxed">This section explains how the product solves the problem and what makes the approach effective.</p>
+                {typeof product.solution === 'object' && product.solution && product.solution.overview ? (
+                  <div>
+                    <p className="text-gray-700 leading-relaxed mb-4">{product.solution.overview}</p>
+                    <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+                      <p className="text-blue-800 font-medium text-lg">{product.solution.tagline}</p>
+                    </div>
+                    <ol className="list-decimal pl-5 text-gray-700 space-y-3">
+                      {product.solution.points.map((point, index) => (
+                        <li key={index} className="mb-3">
+                          <span className="font-semibold">{point.main}</span>
+                          {point.sub && point.sub.length > 0 && (
+                            <div className="ml-4 mt-2">
+                              {point.sub.map((subPoint, subIndex) => (
+                                <p key={subIndex} className="text-gray-600">{subPoint}</p>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : (
+                  <p className="text-gray-700 leading-relaxed">{typeof product.solution === 'string' ? product.solution : ''}</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -255,12 +530,43 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                 <CardTitle>User Journey</CardTitle>
               </CardHeader>
               <CardContent>
-                <ol className="list-decimal pl-5 text-gray-700">
-                  <li>Step 1: User discovers the product.</li>
-                  <li>Step 2: User signs up and sets up their account.</li>
-                  <li>Step 3: User experiences the core value and features.</li>
-                  <li>Step 4: User achieves their goal or solves their problem.</li>
-                </ol>
+                {Array.isArray(product.userJourney) && product.userJourney.length > 0 && typeof product.userJourney[0] === 'object' ? (
+                  <div className="space-y-6">
+                    {product.userJourney.map((step, index) => (
+                      <div key={index} className="border-l-4 border-blue-200 pl-6 pb-4">
+                        <h4 className="font-bold text-lg text-blue-800 mb-3">{step.phase}</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <span className="font-semibold text-gray-800">User Action:</span>
+                            <p className="text-gray-700 mt-1" dangerouslySetInnerHTML={{ __html: step.userAction.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></p>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-gray-800">ZipReach Action:</span>
+                            {Array.isArray(step.zipReachAction) ? (
+                              <ul className="list-disc ml-5 mt-1 text-gray-700">
+                                {step.zipReachAction.map((action, actionIndex) => (
+                                  <li key={actionIndex} className="mb-1">{action}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-gray-700 mt-1">{step.zipReachAction}</p>
+                            )}
+                          </div>
+                          <div className="bg-green-50 border-l-4 border-green-400 p-3 rounded-r">
+                            <span className="font-semibold text-green-800">Output:</span>
+                            <p className="text-green-700 mt-1" dangerouslySetInnerHTML={{ __html: step.output.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }}></p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <ol className="list-decimal pl-5 text-gray-700">
+                    {Array.isArray(product.userJourney) && product.userJourney.map((step, index) => (
+                      <li key={index} className="mb-2">{typeof step === 'string' ? step : ''}</li>
+                    ))}
+                  </ol>
+                )}
               </CardContent>
             </Card>
             {/* Real World Scenario Card */}
@@ -269,7 +575,15 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                 <CardTitle>Real World Scenario</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-700 leading-relaxed">Imagine a user in your target market who faces the key gaps above. This card describes how they would interact with your product in a real-world context, from discovery to value realization.</p>
+                {Array.isArray(product.realWorldScenario) ? (
+                  <ol className="list-decimal pl-5 text-gray-700">
+                    {product.realWorldScenario.map((step, index) => (
+                      <li key={index} className="mb-2">{step}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-gray-700 leading-relaxed">{product.realWorldScenario}</p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -303,7 +617,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                           <input className="border rounded px-2 py-1 w-full" value={row.marketSize} onChange={e => editCompetitorFinding(idx, 'marketSize', e.target.value)} />
                         </td>
                         <td className="px-2 py-2">
-                          <button className="text-red-500 font-bold" onClick={() => setCompetitorFindings(competitorFindings.filter((_, i) => i !== idx))}>✕</button>
+                          <button className="text-red-500 font-bold" onClick={() => deleteCompetitorFinding(idx)}>✕</button>
                         </td>
                       </tr>
                     ))}
@@ -343,7 +657,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                           <input className="border rounded px-2 py-1 w-full" value={row.ourSolution} onChange={e => editCompetitorAnalysis(idx, 'ourSolution', e.target.value)} />
                         </td>
                         <td className="px-2 py-2">
-                          <button className="text-red-500 font-bold" onClick={() => setCompetitorAnalysis(competitorAnalysis.filter((_, i) => i !== idx))}>✕</button>
+                          <button className="text-red-500 font-bold" onClick={() => deleteCompetitorAnalysis(idx)}>✕</button>
                         </td>
                       </tr>
                     ))}
@@ -360,10 +674,22 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
               <CardTitle>Unique Value Propositions</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="list-disc pl-5 text-gray-700">
-                <li>UVP 1: What makes this product stand out from competitors.</li>
-                <li>UVP 2: Another unique benefit or differentiator.</li>
-              </ul>
+              {Array.isArray(product.uniqueValuePropositions) && product.uniqueValuePropositions.length > 0 && typeof product.uniqueValuePropositions[0] === 'object' ? (
+                <ul className="list-disc pl-5 text-gray-700 space-y-3">
+                  {product.uniqueValuePropositions.map((uvp, index) => (
+                    <li key={index} className="mb-3">
+                      <span className="font-semibold">{uvp.main}</span>
+                      <span className="ml-2">— {uvp.description}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="list-disc pl-5 text-gray-700">
+                  {Array.isArray(product.uniqueValuePropositions) && product.uniqueValuePropositions.map((uvp, index) => (
+                    <li key={index} className="mb-2">{typeof uvp === 'string' ? uvp : ''}</li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -385,18 +711,22 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={[
-                  { share: '1%', revenue: 10000000 },
-                  { share: '3%', revenue: 30000000 },
-                  { share: '5%', revenue: 50000000 },
+                  { share: '0.5%', revenue: (product.marketSize * 0.005) },
+                  { share: '1%', revenue: (product.marketSize * 0.01) },
+                  { share: `${product.penetrationRate}%`, revenue: product.projectedRevenue },
+                  { share: '5%', revenue: (product.marketSize * 0.05) },
+                  { share: '10%', revenue: (product.marketSize * 0.10) },
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="share" />
-                  <YAxis tickFormatter={v => `$${(v/1000000).toFixed(0)}M`} />
-                  <Tooltip formatter={(value) => `$${(Number(value)/1000000).toFixed(0)}M`} />
+                  <YAxis tickFormatter={v => v >= 1000000000 ? `$${(v/1000000000).toFixed(1)}B` : `$${(v/1000000).toFixed(0)}M`} />
+                  <Tooltip formatter={(value) => Number(value) >= 1000000000 ? `$${(Number(value)/1000000000).toFixed(1)}B` : `$${(Number(value)/1000000).toFixed(0)}M`} />
                   <Bar dataKey="revenue" fill="#d1d5db">
-                    <LabelList dataKey="revenue" position="top" formatter={(value) => `$${(Number(value)/1000000).toFixed(0)}M`} />
+                    <LabelList dataKey="revenue" position="top" formatter={(value) => Number(value) >= 1000000000 ? `$${(Number(value)/1000000000).toFixed(1)}B` : `$${(Number(value)/1000000).toFixed(0)}M`} />
+                    <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
                     <Cell fill="#EF4444" />
+                    <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
                   </Bar>
                 </BarChart>
@@ -411,49 +741,90 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={[
-                  { share: '1%', users: 10000 },
-                  { share: '3%', users: 30000 },
-                  { share: '5%', users: 50000 },
+                  { share: '0.5%', users: Math.round((product.marketSize * 0.005) / product.arpu) },
+                  { share: '1%', users: Math.round((product.marketSize * 0.01) / product.arpu) },
+                  { share: `${product.penetrationRate}%`, users: product.usersNeeded },
+                  { share: '5%', users: Math.round((product.marketSize * 0.05) / product.arpu) },
+                  { share: '10%', users: Math.round((product.marketSize * 0.10) / product.arpu) },
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="share" />
-                  <YAxis />
-                  <Tooltip />
+                  <YAxis tickFormatter={v => v >= 1000000000 ? `${(v/1000000000).toFixed(1)}B` : v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v.toLocaleString()} />
+                  <Tooltip formatter={(value) => Number(value) >= 1000000000 ? `${(Number(value)/1000000000).toFixed(1)}B` : Number(value) >= 1000000 ? `${(Number(value)/1000000).toFixed(1)}M` : Number(value).toLocaleString()} />
                   <Bar dataKey="users" fill="#d1d5db">
-                    <LabelList dataKey="users" position="top" />
+                    <LabelList dataKey="users" position="top" formatter={(value) => Number(value) >= 1000000000 ? `${(Number(value)/1000000000).toFixed(1)}B` : Number(value) >= 1000000 ? `${(Number(value)/1000000).toFixed(1)}M` : Number(value).toLocaleString()} />
+                    <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
                     <Cell fill="#6366F1" />
+                    <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
-          {/* Paying Users Needed vs ARPU (3% Market Share) */}
+          {/* Paying Users Needed vs ARPU (Current Market Share) */}
           <Card>
             <CardHeader>
-              <CardTitle>Paying Users Needed vs ARPU (3% Market Share)</CardTitle>
+              <CardTitle>Paying Users Needed vs ARPU ({product.penetrationRate}% Market Share)</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={[
-                  { arpu: 500, users: 60000 },
-                  { arpu: 700, users: 42857 },
-                  { arpu: 1000, users: 30000 },
-                  { arpu: 1500, users: 20000 },
-                  { arpu: 2000, users: 15000 },
+                  { arpu: Math.round(product.arpu * 0.5), users: Math.round(product.projectedRevenue / (product.arpu * 0.5)) },
+                  { arpu: Math.round(product.arpu * 0.75), users: Math.round(product.projectedRevenue / (product.arpu * 0.75)) },
+                  { arpu: product.arpu, users: product.usersNeeded },
+                  { arpu: Math.round(product.arpu * 1.5), users: Math.round(product.projectedRevenue / (product.arpu * 1.5)) },
+                  { arpu: Math.round(product.arpu * 2), users: Math.round(product.projectedRevenue / (product.arpu * 2)) },
                 ]}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="arpu" tickFormatter={v => `$${v}`}/>
-                  <YAxis />
-                  <Tooltip />
+                  <YAxis tickFormatter={v => v >= 1000000000 ? `${(v/1000000000).toFixed(1)}B` : v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v.toLocaleString()} />
+                  <Tooltip 
+                    labelFormatter={(label) => `ARPU: $${label}`}
+                    formatter={(value) => [Number(value) >= 1000000000 ? `${(Number(value)/1000000000).toFixed(1)}B` : Number(value) >= 1000000 ? `${(Number(value)/1000000).toFixed(1)}M` : Number(value).toLocaleString(), 'Users Needed']} 
+                  />
                   <Bar dataKey="users" fill="#d1d5db">
-                    <LabelList dataKey="users" position="top" />
+                    <LabelList dataKey="users" position="top" formatter={(value) => Number(value) >= 1000000000 ? `${(Number(value)/1000000000).toFixed(1)}B` : Number(value) >= 1000000 ? `${(Number(value)/1000000).toFixed(1)}M` : Number(value).toLocaleString()} />
                     <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
                     <Cell fill="#6366F1" />
                     <Cell fill="#d1d5db" />
                     <Cell fill="#d1d5db" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+          {/* Market Share vs Total Revenue Potential */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Market Share vs Total Revenue Potential</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={[
+                  { share: '0.1%', potential: (product.marketSize * 0.001) },
+                  { share: '0.5%', potential: (product.marketSize * 0.005) },
+                  { share: '1%', potential: (product.marketSize * 0.01) },
+                  { share: `${product.penetrationRate}%`, potential: product.projectedRevenue },
+                  { share: '5%', potential: (product.marketSize * 0.05) },
+                  { share: '10%', potential: (product.marketSize * 0.10) },
+                  { share: '20%', potential: (product.marketSize * 0.20) },
+                ]}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="share" />
+                  <YAxis tickFormatter={v => v >= 1000000000 ? `$${(v/1000000000).toFixed(1)}B` : `$${(v/1000000).toFixed(0)}M`} />
+                  <Tooltip formatter={(value) => Number(value) >= 1000000000 ? `$${(Number(value)/1000000000).toFixed(1)}B` : `$${(Number(value)/1000000).toFixed(0)}M`} />
+                  <Bar dataKey="potential" fill="#d1d5db">
+                    <LabelList dataKey="potential" position="top" formatter={(value) => Number(value) >= 1000000000 ? `$${(Number(value)/1000000000).toFixed(1)}B` : `$${(Number(value)/1000000).toFixed(0)}M`} />
+                    <Cell fill="#d1d5db" />
+                    <Cell fill="#d1d5db" />
+                    <Cell fill="#d1d5db" />
+                    <Cell fill="#EF4444" />
+                    <Cell fill="#d1d5db" />
+                    <Cell fill="#d1d5db" />
+                    <Cell fill="#10B981" />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
